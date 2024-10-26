@@ -1,8 +1,10 @@
-package io.github.thegbguy.quietscreen
+package io.github.thegbguy.quietscreen.dnd
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import io.github.thegbguy.quietscreen.core.setDndMode
+import io.github.thegbguy.quietscreen.core.showDndStatusNotification
 
 class ScreenStateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

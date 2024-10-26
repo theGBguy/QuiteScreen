@@ -1,6 +1,5 @@
-package io.github.thegbguy.quietscreen.ui.theme
+package io.github.thegbguy.quietscreen.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

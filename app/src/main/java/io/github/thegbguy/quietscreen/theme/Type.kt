@@ -1,4 +1,4 @@
-package io.github.thegbguy.quietscreen.ui.theme
+package io.github.thegbguy.quietscreen.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

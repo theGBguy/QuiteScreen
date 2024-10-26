@@ -1,4 +1,4 @@
-package io.github.thegbguy.quietscreen.ui.theme
+package io.github.thegbguy.quietscreen.theme
 
 import androidx.compose.ui.graphics.Color
 

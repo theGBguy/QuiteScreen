@@ -1,12 +1,6 @@
-package io.github.thegbguy.quietscreen
+package io.github.thegbguy.quietscreen.dnd
 
 import android.Manifest
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.Build
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +28,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,71 +38,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
-
-class MainActivity : ComponentActivity() {
-    private val requestNotificationPermission = 1010
-    private val receiver = ScreenStateReceiver()
-
-    private val isSilentModeActive by lazy { mutableStateOf(isDndModeEnabled(this)) }
-    private val hasDndPermission by lazy { mutableStateOf(hasDndPermission(this)) }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        createNotificationChannel(this)
-        registerScreenStateReceiver()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                requestNotificationPermission
-            )
-        }
-
-        setContent {
-            SilentModeApp(
-                hasDndPermission = hasDndPermission.value,
-                isSilentModeActive = isSilentModeActive.value,
-                onToggle = { active ->
-                    isSilentModeActive.value = active
-                    setDndMode(this, active)
-                    showDndStatusNotification(this, active)
-                }
-            )
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        isSilentModeActive.value = isDndModeEnabled(this)
-        hasDndPermission.value = hasDndPermission(this)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        unregisterScreenStateReceiver()
-    }
-
-    private fun registerScreenStateReceiver() {
-        val intentFilter = IntentFilter().apply {
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
-        }
-        registerReceiver(receiver, intentFilter)
-    }
-
-    private fun unregisterScreenStateReceiver() {
-        unregisterReceiver(receiver)
-    }
-}
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import io.github.thegbguy.quietscreen.R
+import io.github.thegbguy.quietscreen.core.requestDndPermission
 
 @Composable
-fun SilentModeApp(
+fun QuiteScreenApp(
     hasDndPermission: Boolean,
     isSilentModeActive: Boolean,
-    onToggle: (Boolean) -> Unit
+    isBatteryOptimizationDisabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onBatteryOptimizationClick: () -> Unit
 ) {
     Scaffold(
         content = { innerPadding ->
@@ -122,7 +62,9 @@ fun SilentModeApp(
                 HomeScreen(
                     isActive = isSilentModeActive,
                     hasDndPermission = hasDndPermission,
-                    onToggle = onToggle
+                    isBatteryOptimizationDisabled = isBatteryOptimizationDisabled,
+                    onToggle = onToggle,
+                    onBatteryOptimizationClick = onBatteryOptimizationClick
                 )
             }
         }
@@ -133,7 +75,9 @@ fun SilentModeApp(
 fun HomeScreen(
     isActive: Boolean,
     hasDndPermission: Boolean,
-    onToggle: (Boolean) -> Unit
+    isBatteryOptimizationDisabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onBatteryOptimizationClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -150,6 +94,16 @@ fun HomeScreen(
         if (!hasDndPermission) {
             DndPermissionCard()
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (isBatteryOptimizationDisabled.not()) {
+            BatteryOptimizationCard(onClick = onBatteryOptimizationClick)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        PermissionRequestCard()
 
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -238,12 +192,15 @@ fun AppStatusCard(isActive: Boolean, onToggle: (Boolean) -> Unit) {
 }
 
 @Composable
-fun BatteryOptimizationCard() {
+fun BatteryOptimizationCard(
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp)
             .clip(RoundedCornerShape(12.dp)),
+        onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = Color(0xFFE0F7FA))
     ) {
         Row(
@@ -303,8 +260,71 @@ fun BellSwitch(
     }
 }
 
+internal val permissions = listOf(
+    Manifest.permission.POST_NOTIFICATIONS,
+    Manifest.permission.FOREGROUND_SERVICE,
+    Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE
+)
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+fun PermissionRequestCard() {
+    val permissionState = rememberMultiplePermissionsState(permissions)
+
+    if (permissionState.allPermissionsGranted.not()) {
+        Card(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            onClick = {
+                permissionState.launchMultiplePermissionRequest()
+            },
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Permissions Required",
+                    style = MaterialTheme.typography.headlineLarge
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                permissions.forEach { permission ->
+                    Text(
+                        text = permissionDescription(permission),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+        }
+    } else {
+        Text(
+            text = "All necessary permissions are granted.",
+            modifier = Modifier.padding(16.dp),
+            style = MaterialTheme.typography.bodyLarge
+        )
+    }
+}
+
+fun permissionDescription(permission: String): String {
+    return when (permission) {
+        Manifest.permission.POST_NOTIFICATIONS -> "Allows the app to post notifications."
+        Manifest.permission.FOREGROUND_SERVICE -> "Required for running the app as a foreground service."
+        Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE -> "Needed for specialized background services."
+        else -> "Permission: $permission"
+    }
+}
+
+
 @Preview(showBackground = true)
 @Composable
-fun PreviewSilentModeApp() {
-    SilentModeApp(hasDndPermission = false, isSilentModeActive = true) {}
+fun QuiteScreenAppPreview() {
+    QuiteScreenApp(
+        hasDndPermission = false,
+        isSilentModeActive = true,
+        isBatteryOptimizationDisabled = false,
+        onToggle = {},
+        onBatteryOptimizationClick = {}
+    )
 }
