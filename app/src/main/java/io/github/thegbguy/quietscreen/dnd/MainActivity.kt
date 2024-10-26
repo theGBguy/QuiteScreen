@@ -1,14 +1,19 @@
 package io.github.thegbguy.quietscreen.dnd
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentSanitizer
+import androidx.core.util.Predicate
 import io.github.thegbguy.quietscreen.core.createNotificationChannel
 import io.github.thegbguy.quietscreen.core.hasDndPermission
 import io.github.thegbguy.quietscreen.core.isBatteryOptimizationDisabled
@@ -31,18 +36,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         createNotificationChannel(this)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    Manifest.permission.POST_NOTIFICATIONS,
-                    Manifest.permission.FOREGROUND_SERVICE,
-                    Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE
-                ),
-                requestNotificationPermission
-            )
-        }
 
         setContent {
             QuiteScreenApp(
@@ -70,10 +63,31 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startDndService() {
-        if (this::serviceIntent.isInitialized.not()) {
-            serviceIntent = Intent(this, DndService::class.java)
+        if (!this::serviceIntent.isInitialized) {
+            serviceIntent = Intent(this, DndService::class.java).apply {
+                component = ComponentName(this@MainActivity, DndService::class.java)
+                action = "io.github.thegbguy.ACTION_START_DND"
+                type = "text/plain"
+                data = Uri.parse("io.github.thegbguy://dnd_service")
+            }
         }
-        ContextCompat.startForegroundService(this, intent)
+
+        try {
+            val sanitizedIntent = IntentSanitizer.Builder()
+                .allowComponent(serviceIntent.component!!)      // Allow the service's component
+                .allowAction("io.github.thegbguy.ACTION_START_DND")  // Allow only specific actions
+                .allowData(Predicate.not { it.scheme != "io.github.thegbguy" })                    // Restrict data URI usage
+                .allowType("text/plain")                     // Allow only this MIME type
+                .build()
+                .sanitizeByThrowing(serviceIntent)  // Will throw if the intent is malicious
+
+            // Start the foreground service using the sanitized intent
+            ContextCompat.startForegroundService(this, sanitizedIntent)
+
+        } catch (e: IllegalArgumentException) {
+            e.printStackTrace()
+            Toast.makeText(this, "Invalid intent detected", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun stopDndService() {

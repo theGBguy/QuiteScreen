@@ -8,21 +8,22 @@ import io.github.thegbguy.quietscreen.core.getNotification
 
 class DndService : Service() {
 
-    private val screenStateReceiver by lazy { ScreenStateReceiver() }
+    private val screenStateReceiver = ScreenStateReceiver()
+    private val filter = IntentFilter().apply {
+        addAction(Intent.ACTION_SCREEN_ON)
+        addAction(Intent.ACTION_SCREEN_OFF)
+    }
 
     override fun onCreate() {
         super.onCreate()
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
-        }
-        registerReceiver(screenStateReceiver, filter)
-
+        // Start the service in foreground with a notification
         val notification = getNotification(applicationContext)
         startForeground(1, notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        registerReceiver(screenStateReceiver, filter)
+
         // Start the service in foreground with a notification
         val notification = getNotification(applicationContext)
         startForeground(1, notification)

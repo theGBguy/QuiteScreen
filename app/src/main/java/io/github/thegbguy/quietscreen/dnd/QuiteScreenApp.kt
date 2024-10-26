@@ -286,32 +286,30 @@ fun PermissionRequestCard() {
             ) {
                 Text(
                     text = "Permissions Required",
-                    style = MaterialTheme.typography.headlineLarge
+                    style = MaterialTheme.typography.bodyLarge
                 )
+
                 Spacer(modifier = Modifier.height(8.dp))
 
-                permissions.forEach { permission ->
+                permissions.forEachIndexed { index, permission ->
                     Text(
-                        text = permissionDescription(permission),
-                        style = MaterialTheme.typography.bodyLarge
+                        text = permissionWithDescription(permission),
+                        style = MaterialTheme.typography.bodySmall
                     )
+                    if (index != permission.lastIndex) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
                 }
             }
         }
-    } else {
-        Text(
-            text = "All necessary permissions are granted.",
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyLarge
-        )
     }
 }
 
-fun permissionDescription(permission: String): String {
+fun permissionWithDescription(permission: String): String {
     return when (permission) {
-        Manifest.permission.POST_NOTIFICATIONS -> "Allows the app to post notifications."
-        Manifest.permission.FOREGROUND_SERVICE -> "Required for running the app as a foreground service."
-        Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE -> "Needed for specialized background services."
+        Manifest.permission.POST_NOTIFICATIONS -> permission.plus(": Allows the app to post notifications.")
+        Manifest.permission.FOREGROUND_SERVICE -> permission.plus(": Required for running the app as a foreground service.")
+        Manifest.permission.FOREGROUND_SERVICE_SPECIAL_USE -> permission.plus(": Needed for specialized background services.")
         else -> "Permission: $permission"
     }
 }
